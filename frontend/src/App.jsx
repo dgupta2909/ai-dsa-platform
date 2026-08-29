@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
+
 import Sidebar from './components/Sidebar';
 import DashboardPage from './pages/DashboardPage';
 import ProblemLibraryPage from './pages/ProblemLibraryPage';
@@ -6,26 +8,24 @@ import ProblemDetailsPage from './pages/ProblemDetailsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import StatusPage from './pages/StatusPage';
+
 import { getCurrentUser } from './services/authService';
 import { useHealthCheck } from './hooks/useHealthCheck';
+
 import './App.css';
 
 function App() {
   const { status, checkHealth } = useHealthCheck();
+
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
-  // Unauthenticated tab: 'login' | 'register' | 'status'
   const [authTab, setAuthTab] = useState('login');
   const [successNotice, setSuccessNotice] = useState(null);
 
-  // Authenticated view: 'dashboard' | 'problems' | 'problem-details' | 'status'
-  const [activeView, setActiveView] = useState('dashboard');
-  const [selectedProblemId, setSelectedProblemId] = useState(null);
-
-  // Check stored JWT on initial mount
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
+
     if (token) {
       getCurrentUser()
         .then((userData) => {
@@ -47,13 +47,15 @@ function App() {
     if (response.token) {
       localStorage.setItem('auth_token', response.token);
     }
+
     setCurrentUser(response);
-    setActiveView('dashboard');
     setSuccessNotice(null);
   };
 
   const handleRegisterSuccess = (user) => {
-    setSuccessNotice(`Registration successful for ${user.email}! Please sign in.`);
+    setSuccessNotice(
+      `Registration successful for ${user.email}! Please sign in.`
+    );
     setAuthTab('login');
   };
 
@@ -62,20 +64,6 @@ function App() {
     setCurrentUser(null);
     setSuccessNotice(null);
     setAuthTab('login');
-    setActiveView('dashboard');
-    setSelectedProblemId(null);
-  };
-
-  const handleNavigate = (view) => {
-    setActiveView(view);
-    if (view !== 'problem-details') {
-      setSelectedProblemId(null);
-    }
-  };
-
-  const handleSelectProblem = (id) => {
-    setSelectedProblemId(id);
-    setActiveView('problem-details');
   };
 
   if (isLoadingAuth) {
@@ -88,69 +76,210 @@ function App() {
     );
   }
 
-  // Authenticated Layout with Sidebar and Dashboard/Problem Library Views
-  if (currentUser) {
-    return (
-      <div className="app-layout">
-        <Sidebar
-          activeView={activeView}
-          onNavigate={handleNavigate}
-          user={currentUser}
+  return (
+    <BrowserRouter>
+      {currentUser ? (
+        <AuthenticatedApp
+          currentUser={currentUser}
+          status={status}
+          checkHealth={checkHealth}
           onLogout={handleLogout}
         />
-        <main className="main-viewport">
-          {activeView === 'dashboard' && (
-            <DashboardPage
-              user={currentUser}
-              onNavigateToProblems={() => handleNavigate('problems')}
-              onSelectProblem={handleSelectProblem}
-            />
-          )}
+      ) : (
+        <UnauthenticatedApp
+          authTab={authTab}
+          setAuthTab={setAuthTab}
+          successNotice={successNotice}
+          setSuccessNotice={setSuccessNotice}
+          onLoginSuccess={handleLoginSuccess}
+          onRegisterSuccess={handleRegisterSuccess}
+          status={status}
+          checkHealth={checkHealth}
+        />
+      )}
+    </BrowserRouter>
+  );
+}
 
-          {activeView === 'problems' && (
-            <ProblemLibraryPage
-              onSelectProblem={handleSelectProblem}
-            />
-          )}
 
-          {activeView === 'problem-details' && (
-            <ProblemDetailsPage
-              problemId={selectedProblemId}
-              onBackToProblems={() => handleNavigate('problems')}
-            />
-          )}
+/* =========================================================
+   AUTHENTICATED APP
+   ========================================================= */
 
-          {activeView === 'status' && (
-            <div className="main-content-view">
-              <StatusPage backendStatus={status} onRefresh={checkHealth} />
-            </div>
-          )}
-        </main>
-      </div>
-    );
-  }
+function AuthenticatedApp({
+  currentUser,
+  status,
+  checkHealth,
+  onLogout,
+}) {
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  // Unauthenticated Layout
+  const getActiveView = () => {
+    if (location.pathname.startsWith('/problems/')) {
+      return 'problem-details';
+    }
+
+    if (location.pathname === '/problems') {
+      return 'problems';
+    }
+
+    if (location.pathname === '/status') {
+      return 'status';
+    }
+
+    return 'dashboard';
+  };
+
+  const activeView = getActiveView();
+
+  const handleNavigate = (view) => {
+    if (view === 'dashboard') {
+      navigate('/dashboard');
+    } else if (view === 'problems') {
+      navigate('/problems');
+    } else if (view === 'status') {
+      navigate('/status');
+    }
+  };
+
+  const handleSelectProblem = (id) => {
+    navigate(`/problems/${id}`);
+  };
+
+  return (
+    <div className="app-layout">
+      <Sidebar
+        activeView={activeView}
+        onNavigate={handleNavigate}
+        user={currentUser}
+        onLogout={onLogout}
+      />
+
+      <main className="main-viewport">
+        <Routes>
+          <Route
+            path="/"
+            element={<Navigate to="/dashboard" replace />}
+          />
+
+          <Route
+            path="/dashboard"
+            element={
+              <DashboardPage
+                user={currentUser}
+                onNavigateToProblems={() => navigate('/problems')}
+                onSelectProblem={handleSelectProblem}
+              />
+            }
+          />
+
+          <Route
+            path="/problems"
+            element={
+              <ProblemLibraryPage
+                onSelectProblem={handleSelectProblem}
+              />
+            }
+          />
+
+          <Route
+            path="/problems/:id"
+            element={
+              <ProblemDetailsRoute
+                onBackToProblems={() => navigate('/problems')}
+              />
+            }
+          />
+
+          <Route
+            path="/status"
+            element={
+              <div className="main-content-view">
+                <StatusPage
+                  backendStatus={status}
+                  onRefresh={checkHealth}
+                />
+              </div>
+            }
+          />
+
+          <Route
+            path="*"
+            element={<Navigate to="/dashboard" replace />}
+          />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
+
+/* =========================================================
+   PROBLEM DETAILS ROUTE
+   ========================================================= */
+
+function ProblemDetailsRoute({ onBackToProblems }) {
+  const { id } = useParams();
+
+  return (
+    <ProblemDetailsPage
+      problemId={id}
+      onBackToProblems={onBackToProblems}
+    />
+  );
+}
+
+
+/* =========================================================
+   UNAUTHENTICATED APP
+   ========================================================= */
+
+function UnauthenticatedApp({
+  authTab,
+  setAuthTab,
+  successNotice,
+  setSuccessNotice,
+  onLoginSuccess,
+  onRegisterSuccess,
+  status,
+  checkHealth,
+}) {
   return (
     <div className="container">
       <div className="app-wrapper">
         <header className="app-header">
           <h1 className="main-logo">AI DSA Platform</h1>
+
           <nav className="tab-nav">
             <button
-              className={`nav-btn ${authTab === 'login' ? 'active' : ''}`}
-              onClick={() => { setAuthTab('login'); setSuccessNotice(null); }}
+              className={`nav-btn ${
+                authTab === 'login' ? 'active' : ''
+              }`}
+              onClick={() => {
+                setAuthTab('login');
+                setSuccessNotice(null);
+              }}
             >
               Sign In
             </button>
+
             <button
-              className={`nav-btn ${authTab === 'register' ? 'active' : ''}`}
-              onClick={() => { setAuthTab('register'); setSuccessNotice(null); }}
+              className={`nav-btn ${
+                authTab === 'register' ? 'active' : ''
+              }`}
+              onClick={() => {
+                setAuthTab('register');
+                setSuccessNotice(null);
+              }}
             >
               Register
             </button>
+
             <button
-              className={`nav-btn ${authTab === 'status' ? 'active' : ''}`}
+              className={`nav-btn ${
+                authTab === 'status' ? 'active' : ''
+              }`}
               onClick={() => setAuthTab('status')}
             >
               System Health
@@ -167,20 +296,29 @@ function App() {
         <main className="content-area">
           {authTab === 'login' && (
             <LoginPage
-              onLoginSuccess={handleLoginSuccess}
-              onSwitchToRegister={() => { setAuthTab('register'); setSuccessNotice(null); }}
+              onLoginSuccess={onLoginSuccess}
+              onSwitchToRegister={() => {
+                setAuthTab('register');
+                setSuccessNotice(null);
+              }}
             />
           )}
 
           {authTab === 'register' && (
             <RegisterPage
-              onRegisterSuccess={handleRegisterSuccess}
-              onSwitchToLogin={() => { setAuthTab('login'); setSuccessNotice(null); }}
+              onRegisterSuccess={onRegisterSuccess}
+              onSwitchToLogin={() => {
+                setAuthTab('login');
+                setSuccessNotice(null);
+              }}
             />
           )}
 
           {authTab === 'status' && (
-            <StatusPage backendStatus={status} onRefresh={checkHealth} />
+            <StatusPage
+              backendStatus={status}
+              onRefresh={checkHealth}
+            />
           )}
         </main>
       </div>
