@@ -9,34 +9,36 @@ import java.util.Collections;
 import java.util.List;
 
 public record ProblemDetailResponse(
-        Long id,
-        String title,
-        String slug,
-        String description,
-        Difficulty difficulty,
-        String category,
-        List<String> tags,
-        Instant createdAt,
-        Instant updatedAt
-) {
-    public static ProblemDetailResponse fromEntity(Problem problem) {
-        List<String> tagList = problem.getTags() != null
-                ? Arrays.stream(problem.getTags().split(","))
-                        .map(String::trim)
-                        .filter(s -> !s.isEmpty())
-                        .toList()
-                : Collections.emptyList();
+                Long id,
+                Integer problemNumber,
+                String title,
+                String slug,
+                String description,
+                String constraints,
+                Difficulty difficulty,
+                String category,
+                List<String> tags,
+                Instant createdAt,
+                Instant updatedAt) {
+        public static ProblemDetailResponse fromEntity(Problem problem) {
+                List<String> tagList = problem.getTags() != null
+                                ? Arrays.stream(problem.getTags().split(","))
+                                                .map(String::trim)
+                                                .filter(s -> !s.isEmpty())
+                                                .toList()
+                                : Collections.emptyList();
 
-        return new ProblemDetailResponse(
-                problem.getId(),
-                problem.getTitle(),
-                problem.getSlug(),
-                problem.getDescription(),
-                problem.getDifficulty(),
-                problem.getCategory(),
-                tagList,
-                problem.getCreatedAt(),
-                problem.getUpdatedAt()
-        );
-    }
+                return new ProblemDetailResponse(
+                                problem.getId(),
+                                problem.getProblemNumber(),
+                                problem.getTitle(),
+                                problem.getSlug(),
+                                problem.getDescription(),
+                                problem.getConstraints(),
+                                problem.getDifficulty(),
+                                problem.getCategory(),
+                                tagList,
+                                problem.getCreatedAt(),
+                                problem.getUpdatedAt());
+        }
 }

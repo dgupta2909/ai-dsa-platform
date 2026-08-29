@@ -8,8 +8,10 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
 
   useEffect(() => {
     if (!problemId) return;
+
     setLoading(true);
     setError(null);
+
     getProblemById(problemId)
       .then((data) => setProblem(data))
       .catch((err) => setError(err.message || 'Failed to load problem details'))
@@ -22,7 +24,10 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
         <button type="button" className="back-btn" onClick={onBackToProblems}>
           ← Back to Problem Library
         </button>
-        <div className="loading-state">Loading problem details...</div>
+
+        <div className="loading-state">
+          Loading problem details...
+        </div>
       </div>
     );
   }
@@ -33,7 +38,10 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
         <button type="button" className="back-btn" onClick={onBackToProblems}>
           ← Back to Problem Library
         </button>
-        <div className="alert alert-error">{error || 'Problem not found'}</div>
+
+        <div className="alert alert-error">
+          {error || 'Problem not found'}
+        </div>
       </div>
     );
   }
@@ -44,31 +52,66 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
         <button type="button" className="back-btn" onClick={onBackToProblems}>
           ← Back to Problem Library
         </button>
+
         <div className="problem-meta-badges">
           <span className={`difficulty-badge badge-${problem.difficulty.toLowerCase()}`}>
             {problem.difficulty}
           </span>
-          <span className="category-tag">{problem.category}</span>
+
+          <span className="category-tag">
+            {problem.category}
+          </span>
         </div>
       </div>
 
       <div className="problem-detail-card">
-        <h1 className="problem-detail-title">{problem.title}</h1>
+
+        <div className="problem-number">
+          #{problem.problemNumber}
+        </div>
+
+        <h1 className="problem-detail-title">
+          {problem.title}
+        </h1>
 
         <div className="tags-container mb-3">
-          {problem.tags && problem.tags.map((tag, idx) => (
-            <span key={idx} className="tag-pill">{tag}</span>
-          ))}
+          {problem.tags &&
+            problem.tags.map((tag, idx) => (
+              <span key={idx} className="tag-pill">
+                {tag}
+              </span>
+            ))}
         </div>
 
         <div className="problem-description">
-          <h2 className="description-heading">Problem Description</h2>
+          <h2 className="description-heading">
+            Problem Description
+          </h2>
+
           <div className="description-text">
             {problem.description.split('\n').map((line, idx) => (
-              <p key={idx}>{line}</p>
+              <p key={idx}>
+                {line || '\u00A0'}
+              </p>
             ))}
           </div>
         </div>
+
+        <div className="problem-constraints">
+          <h2 className="description-heading">
+            Constraints
+          </h2>
+
+          <div className="description-text">
+            {problem.constraints &&
+              problem.constraints.split('\n').map((line, idx) => (
+                <p key={idx}>
+                  {line || '\u00A0'}
+                </p>
+              ))}
+          </div>
+        </div>
+
       </div>
     </div>
   );

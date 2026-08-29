@@ -9,30 +9,30 @@ import java.util.Collections;
 import java.util.List;
 
 public record ProblemSummaryResponse(
-        Long id,
-        String title,
-        String slug,
-        Difficulty difficulty,
-        String category,
-        List<String> tags,
-        Instant createdAt
-) {
-    public static ProblemSummaryResponse fromEntity(Problem problem) {
-        List<String> tagList = problem.getTags() != null
-                ? Arrays.stream(problem.getTags().split(","))
-                        .map(String::trim)
-                        .filter(s -> !s.isEmpty())
-                        .toList()
-                : Collections.emptyList();
+                Long id,
+                Integer problemNumber,
+                String title,
+                String slug,
+                Difficulty difficulty,
+                String category,
+                List<String> tags,
+                Instant createdAt) {
+        public static ProblemSummaryResponse fromEntity(Problem problem) {
+                List<String> tagList = problem.getTags() != null
+                                ? Arrays.stream(problem.getTags().split(","))
+                                                .map(String::trim)
+                                                .filter(s -> !s.isEmpty())
+                                                .toList()
+                                : Collections.emptyList();
 
-        return new ProblemSummaryResponse(
-                problem.getId(),
-                problem.getTitle(),
-                problem.getSlug(),
-                problem.getDifficulty(),
-                problem.getCategory(),
-                tagList,
-                problem.getCreatedAt()
-        );
-    }
+                return new ProblemSummaryResponse(
+                                problem.getId(),
+                                problem.getProblemNumber(),
+                                problem.getTitle(),
+                                problem.getSlug(),
+                                problem.getDifficulty(),
+                                problem.getCategory(),
+                                tagList,
+                                problem.getCreatedAt());
+        }
 }

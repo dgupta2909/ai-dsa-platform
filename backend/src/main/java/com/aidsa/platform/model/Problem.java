@@ -21,6 +21,9 @@ public class Problem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "problem_number", nullable = false, unique = true)
+    private Integer problemNumber;
+
     @Column(name = "title", nullable = false, length = 255)
     private String title;
 
@@ -29,6 +32,9 @@ public class Problem {
 
     @Column(name = "description", nullable = false, columnDefinition = "TEXT")
     private String description;
+
+    @Column(name = "constraints", nullable = false, columnDefinition = "TEXT")
+    private String constraints;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "difficulty", nullable = false, length = 20)
@@ -49,10 +55,20 @@ public class Problem {
     public Problem() {
     }
 
-    public Problem(String title, String slug, String description, Difficulty difficulty, String category, String tags) {
+    public Problem(
+            Integer problemNumber,
+            String title,
+            String slug,
+            String description,
+            String constraints,
+            Difficulty difficulty,
+            String category,
+            String tags) {
+        this.problemNumber = problemNumber;
         this.title = title;
         this.slug = slug;
         this.description = description;
+        this.constraints = constraints;
         this.difficulty = difficulty;
         this.category = category;
         this.tags = tags;
@@ -75,6 +91,22 @@ public class Problem {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Integer getProblemNumber() {
+        return problemNumber;
+    }
+
+    public void setProblemNumber(Integer problemNumber) {
+        this.problemNumber = problemNumber;
+    }
+
+    public String getConstraints() {
+        return constraints;
+    }
+
+    public void setConstraints(String constraints) {
+        this.constraints = constraints;
     }
 
     public String getTitle() {
