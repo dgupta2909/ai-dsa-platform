@@ -40,9 +40,14 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/register", "/api/auth/login", "/api/health").permitAll()
-                        .anyRequest().authenticated()
-                )
+        .requestMatchers(
+                "/api/auth/register",
+                "/api/auth/login",
+                "/api/health",
+                "/api/code/run"
+        ).permitAll()
+        .anyRequest().authenticated()
+)
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) ->
                                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
