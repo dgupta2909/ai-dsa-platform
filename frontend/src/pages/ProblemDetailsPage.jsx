@@ -913,9 +913,124 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
 
                         <div>
 
-                          <div className="test-case-results-title">
-                            TEST CASES
-                          </div>
+                          <div className="test-case-results-list">
+
+  {testCases.map((testCase) => {
+
+    const isPassed =
+      testCase.status === 'PASSED';
+
+    let statusLabel;
+
+    if (
+      testCase.status ===
+      'TIME_LIMIT_EXCEEDED'
+    ) {
+      statusLabel =
+        'Time Limit Exceeded';
+    } else if (
+      testCase.status ===
+      'COMPILATION_ERROR'
+    ) {
+      statusLabel =
+        'Compilation Error';
+    } else if (
+      testCase.status ===
+      'RUNTIME_ERROR'
+    ) {
+      statusLabel =
+        'Runtime Error';
+    } else if (isPassed) {
+      statusLabel = 'Passed';
+    } else {
+      statusLabel = 'Failed';
+    }
+
+    return (
+      <div
+        key={testCase.testCaseId}
+        className={`test-case-result-item ${
+          isPassed
+            ? 'test-case-passed'
+            : 'test-case-failed'
+        }`}
+      >
+
+        <div className="test-case-result-left">
+
+          <div className="test-case-status-icon">
+            {isPassed ? '✓' : '×'}
+          </div>
+
+          <div className="test-case-result-info">
+
+            <div className="test-case-result-name">
+              Test Case{' '}
+              {testCase.testCaseNumber}
+            </div>
+
+            <div className="test-case-result-status">
+              {statusLabel}
+            </div>
+
+            {!testCase.hidden && (
+              <div className="test-case-output-details">
+
+                <div className="test-case-output-block">
+                  <span className="test-case-output-label">
+                    Expected Output
+                  </span>
+
+                  <pre className="test-case-output-value">
+                    {testCase.expectedOutput || '—'}
+                  </pre>
+                </div>
+
+                <div className="test-case-output-block">
+                  <span className="test-case-output-label">
+                    Your Output
+                  </span>
+
+                  <pre className="test-case-output-value">
+                    {testCase.actualOutput || '—'}
+                  </pre>
+                </div>
+
+              </div>
+            )}
+
+            {testCase.hidden && (
+              <div className="test-case-hidden-message">
+                Hidden test case
+              </div>
+            )}
+
+          </div>
+
+        </div>
+
+        <div className="test-case-result-right">
+
+          {testCase.hidden && (
+            <span className="test-case-hidden-badge">
+              Hidden
+            </span>
+          )}
+
+          {testCase.executionTimeMs !== null &&
+            testCase.executionTimeMs !== undefined && (
+              <span className="test-case-time">
+                {testCase.executionTimeMs} ms
+              </span>
+            )}
+
+        </div>
+
+      </div>
+    );
+  })}
+
+</div>
 
                           <div className="test-case-results-summary">
                             {passedCount} / {testCases.length}{' '}

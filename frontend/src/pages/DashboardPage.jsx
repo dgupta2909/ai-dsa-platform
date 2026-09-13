@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getProblems } from '../services/problemService';
+import { getRecommendations } from '../services/recommendationService';
 import {
   getSubmissionHistory,
   getSubmissionAnalytics,
@@ -18,6 +19,10 @@ function DashboardPage({
 
   const [analytics, setAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
+
+  const [recommendations, setRecommendations] = useState([]);
+  const [recommendationsLoading, setRecommendationsLoading] =
+    useState(true);
 
   /* =========================================================
      LOAD PROBLEMS
@@ -84,6 +89,34 @@ function DashboardPage({
   }, []);
 
   /* =========================================================
+     LOAD RECOMMENDATIONS
+     ========================================================= */
+
+  useEffect(() => {
+    const loadRecommendations = async () => {
+      try {
+        const data =
+          await getRecommendations();
+
+        setRecommendations(
+          Array.isArray(data) ? data : []
+        );
+      } catch (error) {
+        console.error(
+          'Failed to load recommendations:',
+          error
+        );
+
+        setRecommendations([]);
+      } finally {
+        setRecommendationsLoading(false);
+      }
+    };
+
+    loadRecommendations();
+  }, []);
+
+  /* =========================================================
      BASIC STATS
      ========================================================= */
 
@@ -147,11 +180,21 @@ function DashboardPage({
   );
 
   /* =========================================================
-     RECOMMENDATIONS
+     AI RECOMMENDATIONS
      ========================================================= */
 
   const recommendedProblems =
-    problems.slice(0, 4);
+    recommendations
+      .slice(0, 4)
+      .map((recommendation) => ({
+        ...recommendation.problem,
+        recommendationScore:
+          recommendation.score,
+        recommendationReason:
+          recommendation.reason,
+        recommendationPriority:
+          recommendation.priority,
+      }));
 
   /* =========================================================
      TOPIC STATS
@@ -573,7 +616,7 @@ function DashboardPage({
 
           </div>
 
-          {loading ? (
+          {recommendationsLoading ? (
 
             <div className="loading-state">
               Loading recommendations...
@@ -582,7 +625,7 @@ function DashboardPage({
           ) : recommendedProblems.length === 0 ? (
 
             <div className="empty-state">
-              No problems available currently.
+              No personalized recommendations available currently.
             </div>
 
           ) : (
@@ -596,6 +639,11 @@ function DashboardPage({
                     problem.difficulty
                       ?.toLowerCase() ||
                     'easy';
+
+                  const priority =
+                    problem.recommendationPriority
+                      ?.toLowerCase() ||
+                    'medium';
 
                   return (
 
@@ -667,6 +715,19 @@ function DashboardPage({
                           {problem.difficulty ||
                             'Easy'}
                         </span>
+
+                        <div className="recommendation-score">
+                          <span
+                            className={`recommendation-priority ${priority}`}
+                          >
+                            {problem.recommendationPriority ||
+                              'MEDIUM'}
+                          </span>
+
+                          <small>
+                            {problem.recommendationScore ?? 0}
+                          </small>
+                        </div>
 
                         <button
                           type="button"

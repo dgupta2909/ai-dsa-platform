@@ -33,7 +33,7 @@ public class TestCaseService {
 
         return testCaseRepository.findByProblemId(problemId)
                 .stream()
-                .map(TestCaseResponse::fromEntity)
+                .map(this::toSafeResponse)
                 .toList();
     }
 
@@ -52,6 +52,21 @@ public class TestCaseService {
 
         return TestCaseResponse.fromEntity(
                 testCaseRepository.save(testCase));
+    }
+
+    private TestCaseResponse toSafeResponse(TestCase testCase) {
+
+        if (testCase.isHidden()) {
+            return new TestCaseResponse(
+                    testCase.getId(),
+                    testCase.getProblem().getId(),
+                    null,
+                    null,
+                    true
+            );
+        }
+
+        return TestCaseResponse.fromEntity(testCase);
     }
 
     private Problem getProblem(Long problemId) {
