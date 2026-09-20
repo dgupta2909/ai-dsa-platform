@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react';
 import Editor from '@monaco-editor/react';
+
 import { getProblemById } from '../services/problemService';
+
 import {
   markProblemAttempted,
   markProblemSolved,
 } from '../services/progressService';
+
 import { runCode } from '../services/codeService';
-import { submitCode } from '../services/submissionService';
+
+import {
+  submitCode,
+  generateAIReview,
+  regenerateAIReview,
+} from '../services/submissionService';
 
 /* =========================================================
    STARTER CODE
@@ -38,7 +46,7 @@ const languageNames = {
 };
 
 /* =========================================================
-   SUBMISSION STATUS HELPERS
+   SUBMISSION STATUS
    ========================================================= */
 
 const submissionStatusConfig = {
@@ -97,6 +105,25 @@ function getSubmissionConfig(status) {
 }
 
 /* =========================================================
+   AI REVIEW HELPERS
+   ========================================================= */
+
+function getReviewList(value) {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  return String(value)
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+/* =========================================================
    MAIN COMPONENT
    ========================================================= */
 
@@ -131,6 +158,17 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [submissionResult, setSubmissionResult] = useState(null);
+
+  /* =======================================================
+     AI CODE REVIEW STATE
+     ======================================================= */
+
+  const [aiReview, setAiReview] = useState(null);
+  const [isGeneratingReview, setIsGeneratingReview] =
+    useState(false);
+  const [isRegeneratingReview, setIsRegeneratingReview] =
+    useState(false);
+  const [aiReviewError, setAIReviewError] = useState('');
 
   /* =======================================================
      PROGRESS STATE
@@ -195,6 +233,10 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
 
     setOutput('');
     setSubmissionResult(null);
+
+    setAiReview(null);
+    setAIReviewError('');
+
     setProgressMessage('');
     setProgressError('');
   };
@@ -219,6 +261,9 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
 
     setOutput('');
     setSubmissionResult(null);
+
+    setAiReview(null);
+    setAIReviewError('');
   };
 
   /* =======================================================
@@ -280,6 +325,9 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
     setOutput('');
     setSubmissionResult(null);
 
+    setAiReview(null);
+    setAIReviewError('');
+
     try {
       const response = await runCode(
         language,
@@ -324,8 +372,12 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
     }
 
     setIsSubmitting(true);
+
     setOutput('');
     setSubmissionResult(null);
+
+    setAiReview(null);
+    setAIReviewError('');
 
     try {
       const response = await submitCode(
@@ -345,6 +397,80 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  /* =======================================================
+     GENERATE AI REVIEW
+     ======================================================= */
+
+  const handleGenerateAIReview = async () => {
+    if (!submissionResult?.id) {
+      setAIReviewError(
+        'Please submit your code first.'
+      );
+      return;
+    }
+
+    setIsGeneratingReview(true);
+    setAIReviewError('');
+
+    try {
+      const review = await generateAIReview(
+        submissionResult.id
+      );
+
+      setAiReview(review);
+    } catch (err) {
+      setAIReviewError(
+        err.message ||
+          'Failed to generate AI review.'
+      );
+    } finally {
+      setIsGeneratingReview(false);
+    }
+  };
+
+  /* =======================================================
+     REGENERATE AI REVIEW
+     ======================================================= */
+
+  const handleRegenerateAIReview = async () => {
+    if (!submissionResult?.id) {
+      setAIReviewError(
+        'Please submit your code first.'
+      );
+      return;
+    }
+
+    setIsRegeneratingReview(true);
+    setAIReviewError('');
+
+    try {
+      const review = await regenerateAIReview(
+        submissionResult.id
+      );
+
+      setAiReview(review);
+    } catch (err) {
+      setAIReviewError(
+        err.message ||
+          'Failed to regenerate AI review.'
+      );
+    } finally {
+      setIsRegeneratingReview(false);
+    }
+  };
+
+  /* =======================================================
+     CLEAR OUTPUT
+     ======================================================= */
+
+  const handleClearOutput = () => {
+    setOutput('');
+    setSubmissionResult(null);
+
+    setAiReview(null);
+    setAIReviewError('');
   };
 
   /* =======================================================
@@ -783,10 +909,7 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
               <button
                 type="button"
                 className="clear-output-btn"
-                onClick={() => {
-                  setOutput('');
-                  setSubmissionResult(null);
-                }}
+                onClick={handleClearOutput}
               >
                 Clear
               </button>
@@ -800,9 +923,10 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
 
           {submissionResult ? (
             (() => {
-              const config = getSubmissionConfig(
-                submissionResult.status
-              );
+              const config =
+                getSubmissionConfig(
+                  submissionResult.status
+                );
 
               const testCases =
                 submissionResult.testCases || [];
@@ -820,351 +944,635 @@ function ProblemDetailsPage({ problemId, onBackToProblems }) {
                 ).length;
 
               return (
-                <div
-                  className={`submission-result-card submission-result-${config.className}`}
-                >
+                <>
+                  <div
+                    className={`submission-result-card submission-result-${config.className}`}
+                  >
 
-                  {/* ==========================================
-                      SUBMISSION SUMMARY
-                     ========================================== */}
+                    {/* Submission Summary */}
 
-                  <div className="submission-result-main">
+                    <div className="submission-result-main">
 
-                    <div className="submission-result-icon">
-                      {config.icon}
-                    </div>
-
-                    <div className="submission-result-info">
-
-                      <div className="submission-result-title">
-                        {config.title}
+                      <div className="submission-result-icon">
+                        {config.icon}
                       </div>
 
-                      <div className="submission-result-subtitle">
-                        {submissionResult.errorMessage ||
-                          config.subtitle}
-                      </div>
+                      <div className="submission-result-info">
 
-                    </div>
-
-                  </div>
-
-                  {/* ==========================================
-                      SUBMISSION DETAILS
-                     ========================================== */}
-
-                  <div className="submission-result-details">
-
-                    <div className="submission-detail-item">
-
-                      <span className="submission-detail-label">
-                        STATUS
-                      </span>
-
-                      <span className="submission-detail-value">
-                        {submissionResult.status ||
-                          'UNKNOWN'}
-                      </span>
-
-                    </div>
-
-                    <div className="submission-detail-item">
-
-                      <span className="submission-detail-label">
-                        LANGUAGE
-                      </span>
-
-                      <span className="submission-detail-value">
-                        {languageNames[language]}
-                      </span>
-
-                    </div>
-
-                    {submissionResult.executionTimeMs !==
-                      null &&
-                      submissionResult.executionTimeMs !==
-                        undefined && (
-                        <div className="submission-detail-item">
-
-                          <span className="submission-detail-label">
-                            EXECUTION TIME
-                          </span>
-
-                          <span className="submission-detail-value">
-                            {
-                              submissionResult.executionTimeMs
-                            }{' '}
-                            ms
-                          </span>
-
+                        <div className="submission-result-title">
+                          {config.title}
                         </div>
-                      )}
 
-                  </div>
+                        <div className="submission-result-subtitle">
+                          {submissionResult.errorMessage ||
+                            config.subtitle}
+                        </div>
 
-                  {/* ==========================================
-                      TEST CASE RESULTS
-                     ========================================== */}
+                      </div>
 
-                  {testCases.length > 0 && (
-                    <div className="test-case-results-section">
+                    </div>
 
-                      <div className="test-case-results-header">
+                    {/* Submission Details */}
 
-                        <div>
+                    <div className="submission-result-details">
 
-                          <div className="test-case-results-list">
+                      <div className="submission-detail-item">
 
-  {testCases.map((testCase) => {
+                        <span className="submission-detail-label">
+                          STATUS
+                        </span>
 
-    const isPassed =
-      testCase.status === 'PASSED';
+                        <span className="submission-detail-value">
+                          {submissionResult.status ||
+                            'UNKNOWN'}
+                        </span>
 
-    let statusLabel;
+                      </div>
 
-    if (
-      testCase.status ===
-      'TIME_LIMIT_EXCEEDED'
-    ) {
-      statusLabel =
-        'Time Limit Exceeded';
-    } else if (
-      testCase.status ===
-      'COMPILATION_ERROR'
-    ) {
-      statusLabel =
-        'Compilation Error';
-    } else if (
-      testCase.status ===
-      'RUNTIME_ERROR'
-    ) {
-      statusLabel =
-        'Runtime Error';
-    } else if (isPassed) {
-      statusLabel = 'Passed';
-    } else {
-      statusLabel = 'Failed';
-    }
+                      <div className="submission-detail-item">
 
-    return (
-      <div
-        key={testCase.testCaseId}
-        className={`test-case-result-item ${
-          isPassed
-            ? 'test-case-passed'
-            : 'test-case-failed'
-        }`}
-      >
+                        <span className="submission-detail-label">
+                          LANGUAGE
+                        </span>
 
-        <div className="test-case-result-left">
+                        <span className="submission-detail-value">
+                          {languageNames[language]}
+                        </span>
 
-          <div className="test-case-status-icon">
-            {isPassed ? '✓' : '×'}
-          </div>
+                      </div>
 
-          <div className="test-case-result-info">
+                      {submissionResult.executionTimeMs !==
+                        null &&
+                        submissionResult.executionTimeMs !==
+                          undefined && (
+                          <div className="submission-detail-item">
 
-            <div className="test-case-result-name">
-              Test Case{' '}
-              {testCase.testCaseNumber}
-            </div>
+                            <span className="submission-detail-label">
+                              EXECUTION TIME
+                            </span>
 
-            <div className="test-case-result-status">
-              {statusLabel}
-            </div>
+                            <span className="submission-detail-value">
+                              {
+                                submissionResult.executionTimeMs
+                              }{' '}
+                              ms
+                            </span>
 
-            {!testCase.hidden && (
-              <div className="test-case-output-details">
+                          </div>
+                        )}
 
-                <div className="test-case-output-block">
-                  <span className="test-case-output-label">
-                    Expected Output
-                  </span>
+                    </div>
 
-                  <pre className="test-case-output-value">
-                    {testCase.expectedOutput || '—'}
-                  </pre>
-                </div>
+                    {/* Test Cases */}
 
-                <div className="test-case-output-block">
-                  <span className="test-case-output-label">
-                    Your Output
-                  </span>
+                    {testCases.length > 0 && (
+                      <div className="test-case-results-section">
 
-                  <pre className="test-case-output-value">
-                    {testCase.actualOutput || '—'}
-                  </pre>
-                </div>
+                        <div className="test-case-results-header">
 
-              </div>
-            )}
+                          <div>
 
-            {testCase.hidden && (
-              <div className="test-case-hidden-message">
-                Hidden test case
-              </div>
-            )}
+                            <div className="test-case-results-summary">
+                              {passedCount} / {testCases.length}{' '}
+                              passed
+                            </div>
 
-          </div>
-
-        </div>
-
-        <div className="test-case-result-right">
-
-          {testCase.hidden && (
-            <span className="test-case-hidden-badge">
-              Hidden
-            </span>
-          )}
-
-          {testCase.executionTimeMs !== null &&
-            testCase.executionTimeMs !== undefined && (
-              <span className="test-case-time">
-                {testCase.executionTimeMs} ms
-              </span>
-            )}
-
-        </div>
-
-      </div>
-    );
-  })}
-
-</div>
-
-                          <div className="test-case-results-summary">
-                            {passedCount} / {testCases.length}{' '}
-                            passed
                           </div>
 
+                          {failedCount === 0 ? (
+                            <span className="test-case-all-passed">
+                              ✓ All Passed
+                            </span>
+                          ) : (
+                            <span className="test-case-some-failed">
+                              {failedCount} Failed
+                            </span>
+                          )}
+
                         </div>
 
-                        {failedCount === 0 ? (
-                          <span className="test-case-all-passed">
-                            ✓ All Passed
-                          </span>
+                        <div className="test-case-results-list">
+
+                          {testCases.map((testCase) => {
+
+                            const isPassed =
+                              testCase.status ===
+                              'PASSED';
+
+                            let statusLabel;
+
+                            if (
+                              testCase.status ===
+                              'TIME_LIMIT_EXCEEDED'
+                            ) {
+                              statusLabel =
+                                'Time Limit Exceeded';
+                            } else if (
+                              testCase.status ===
+                              'COMPILATION_ERROR'
+                            ) {
+                              statusLabel =
+                                'Compilation Error';
+                            } else if (
+                              testCase.status ===
+                              'RUNTIME_ERROR'
+                            ) {
+                              statusLabel =
+                                'Runtime Error';
+                            } else if (isPassed) {
+                              statusLabel =
+                                'Passed';
+                            } else {
+                              statusLabel =
+                                'Failed';
+                            }
+
+                            return (
+                              <div
+                                key={
+                                  testCase.testCaseId
+                                }
+                                className={`test-case-result-item ${
+                                  isPassed
+                                    ? 'test-case-passed'
+                                    : 'test-case-failed'
+                                }`}
+                              >
+
+                                <div className="test-case-result-left">
+
+                                  <div className="test-case-status-icon">
+                                    {isPassed
+                                      ? '✓'
+                                      : '×'}
+                                  </div>
+
+                                  <div className="test-case-result-info">
+
+                                    <div className="test-case-result-name">
+                                      Test Case{' '}
+                                      {
+                                        testCase.testCaseNumber
+                                      }
+                                    </div>
+
+                                    <div className="test-case-result-status">
+                                      {statusLabel}
+                                    </div>
+
+                                    {!testCase.hidden && (
+                                      <div className="test-case-output-details">
+
+                                        <div className="test-case-output-block">
+
+                                          <span className="test-case-output-label">
+                                            Expected Output
+                                          </span>
+
+                                          <pre className="test-case-output-value">
+                                            {
+                                              testCase.expectedOutput ||
+                                              '—'
+                                            }
+                                          </pre>
+
+                                        </div>
+
+                                        <div className="test-case-output-block">
+
+                                          <span className="test-case-output-label">
+                                            Your Output
+                                          </span>
+
+                                          <pre className="test-case-output-value">
+                                            {
+                                              testCase.actualOutput ||
+                                              '—'
+                                            }
+                                          </pre>
+
+                                        </div>
+
+                                      </div>
+                                    )}
+
+                                    {testCase.hidden && (
+                                      <div className="test-case-hidden-message">
+                                        Hidden test case
+                                      </div>
+                                    )}
+
+                                  </div>
+
+                                </div>
+
+                                <div className="test-case-result-right">
+
+                                  {testCase.hidden && (
+                                    <span className="test-case-hidden-badge">
+                                      Hidden
+                                    </span>
+                                  )}
+
+                                  {testCase.executionTimeMs !==
+                                    null &&
+                                    testCase.executionTimeMs !==
+                                      undefined && (
+                                      <span className="test-case-time">
+                                        {
+                                          testCase.executionTimeMs
+                                        }{' '}
+                                        ms
+                                      </span>
+                                    )}
+
+                                </div>
+
+                              </div>
+                            );
+                          })}
+
+                        </div>
+
+                      </div>
+                    )}
+
+                    {/* Success Message */}
+
+                    {submissionResult.status ===
+                      'ACCEPTED' && (
+                      <div className="submission-success-message">
+                        ✓ All test cases passed successfully.
+                      </div>
+                    )}
+
+                  </div>
+
+                  {/* =================================================
+                      AI CODE REVIEW
+                     ================================================= */}
+
+                  <div className="ai-code-review-section">
+
+                    <div className="ai-code-review-header">
+
+                      <div className="ai-code-review-heading">
+
+                        <div className="ai-code-review-icon">
+                          ✦
+                        </div>
+
+                        <div>
+                          <div className="ai-code-review-kicker">
+                            AI POWERED
+                          </div>
+
+                          <h2>
+                            Gemini Code Review
+                          </h2>
+
+                          <p>
+                            Get an AI analysis of your solution,
+                            including approach, complexity,
+                            strengths and improvements.
+                          </p>
+                        </div>
+
+                      </div>
+
+                      <div className="ai-code-review-actions">
+
+                        {!aiReview ? (
+                          <button
+                            type="button"
+                            className="ai-review-generate-btn"
+                            onClick={
+                              handleGenerateAIReview
+                            }
+                            disabled={
+                              isGeneratingReview ||
+                              isRegeneratingReview
+                            }
+                          >
+                            {isGeneratingReview ? (
+                              <>
+                                <span className="ai-review-spinner"></span>
+                                Reviewing...
+                              </>
+                            ) : (
+                              <>
+                                ✦ Generate AI Review
+                              </>
+                            )}
+                          </button>
                         ) : (
-                          <span className="test-case-some-failed">
-                            {failedCount} Failed
-                          </span>
+                          <button
+                            type="button"
+                            className="ai-review-regenerate-btn"
+                            onClick={
+                              handleRegenerateAIReview
+                            }
+                            disabled={
+                              isGeneratingReview ||
+                              isRegeneratingReview
+                            }
+                          >
+                            {isRegeneratingReview ? (
+                              <>
+                                <span className="ai-review-spinner"></span>
+                                Regenerating...
+                              </>
+                            ) : (
+                              <>
+                                ↻ Regenerate Review
+                              </>
+                            )}
+                          </button>
                         )}
 
                       </div>
 
-                      <div className="test-case-results-list">
+                    </div>
 
-                        {testCases.map((testCase) => {
+                    {/* AI REVIEW ERROR */}
 
-                          const isPassed =
-                            testCase.status ===
-                            'PASSED';
+                    {aiReviewError && (
+                      <div className="ai-review-error">
+                        <span>!</span>
+                        <span>
+                          {aiReviewError}
+                        </span>
+                      </div>
+                    )}
 
-                          let statusLabel;
+                    {/* AI REVIEW LOADING */}
 
-                          if (
-                            testCase.status ===
-                            'TIME_LIMIT_EXCEEDED'
-                          ) {
-                            statusLabel =
-                              'Time Limit Exceeded';
-                          } else if (
-                            testCase.status ===
-                            'COMPILATION_ERROR'
-                          ) {
-                            statusLabel =
-                              'Compilation Error';
-                          } else if (
-                            testCase.status ===
-                            'RUNTIME_ERROR'
-                          ) {
-                            statusLabel =
-                              'Runtime Error';
-                          } else if (isPassed) {
-                            statusLabel = 'Passed';
-                          } else {
-                            statusLabel = 'Failed';
-                          }
+                    {(isGeneratingReview ||
+                      isRegeneratingReview) &&
+                      !aiReview && (
+                        <div className="ai-review-loading">
 
-                          return (
-                            <div
-                              key={
-                                testCase.testCaseId
-                              }
-                              className={`test-case-result-item ${
-                                isPassed
-                                  ? 'test-case-passed'
-                                  : 'test-case-failed'
-                              }`}
-                            >
+                          <div className="ai-review-loading-icon">
+                            ✦
+                          </div>
 
-                              <div className="test-case-result-left">
+                          <div>
+                            <strong>
+                              Gemini is analyzing your code...
+                            </strong>
 
-                                <div className="test-case-status-icon">
-                                  {isPassed
-                                    ? '✓'
-                                    : '×'}
-                                </div>
+                            <p>
+                              Reviewing your approach,
+                              complexity and code quality.
+                            </p>
+                          </div>
 
-                                <div className="test-case-result-info">
+                        </div>
+                      )}
 
-                                  <div className="test-case-result-name">
-                                    Test Case{' '}
-                                    {
-                                      testCase.testCaseNumber
-                                    }
-                                  </div>
+                    {/* AI REVIEW RESULT */}
 
-                                  <div className="test-case-result-status">
-                                    {statusLabel}
-                                  </div>
+                    {aiReview && (
+                      <div className="ai-review-result">
 
-                                </div>
+                        {/* Provider */}
 
-                              </div>
+                        <div className="ai-review-provider">
 
-                              <div className="test-case-result-right">
+                          <div className="ai-review-provider-left">
 
-                                {testCase.hidden && (
-                                  <span className="test-case-hidden-badge">
-                                    Hidden
-                                  </span>
-                                )}
+                            <span className="ai-review-provider-dot"></span>
 
-                                {testCase.executionTimeMs !==
-                                  null &&
-                                  testCase.executionTimeMs !==
-                                    undefined && (
-                                    <span className="test-case-time">
-                                      {
-                                        testCase.executionTimeMs
-                                      }{' '}
-                                      ms
-                                    </span>
-                                  )}
+                            <span>
+                              Powered by{' '}
+                              <strong>
+                                {aiReview.aiProvider ||
+                                  'Gemini'}
+                              </strong>
+                            </span>
 
-                              </div>
+                            {aiReview.aiModel && (
+                              <>
+                                <span className="ai-review-provider-separator">
+                                  •
+                                </span>
+
+                                <span>
+                                  {aiReview.aiModel}
+                                </span>
+                              </>
+                            )}
+
+                          </div>
+
+                          {aiReview.createdAt && (
+                            <span className="ai-review-date">
+                              AI Review
+                            </span>
+                          )}
+
+                        </div>
+
+                        {/* Overall Feedback */}
+
+                        {aiReview.overallFeedback && (
+                          <div className="ai-review-overall">
+
+                            <div className="ai-review-section-title">
+                              <span>◈</span>
+                              Overall Feedback
+                            </div>
+
+                            <p>
+                              {aiReview.overallFeedback}
+                            </p>
+
+                          </div>
+                        )}
+
+                        {/* Approach */}
+
+                        {aiReview.approach && (
+                          <div className="ai-review-approach">
+
+                            <div className="ai-review-section-title">
+                              <span>⌁</span>
+                              Approach
+                            </div>
+
+                            <p>
+                              {aiReview.approach}
+                            </p>
+
+                          </div>
+                        )}
+
+                        {/* Complexity */}
+
+                        <div className="ai-review-complexity-grid">
+
+                          {aiReview.timeComplexity && (
+                            <div className="ai-review-complexity-card">
+
+                              <span className="ai-review-card-label">
+                                TIME COMPLEXITY
+                              </span>
+
+                              <strong>
+                                {aiReview.timeComplexity}
+                              </strong>
 
                             </div>
-                          );
-                        })}
+                          )}
+
+                          {aiReview.spaceComplexity && (
+                            <div className="ai-review-complexity-card">
+
+                              <span className="ai-review-card-label">
+                                SPACE COMPLEXITY
+                              </span>
+
+                              <strong>
+                                {aiReview.spaceComplexity}
+                              </strong>
+
+                            </div>
+                          )}
+
+                          {aiReview.codeQualityScore !==
+                            null &&
+                            aiReview.codeQualityScore !==
+                              undefined && (
+                              <div className="ai-review-complexity-card">
+
+                                <span className="ai-review-card-label">
+                                  CODE QUALITY
+                                </span>
+
+                                <strong>
+                                  {
+                                    aiReview.codeQualityScore
+                                  }
+                                  <span className="ai-review-score-max">
+                                    /100
+                                  </span>
+                                </strong>
+
+                              </div>
+                            )}
+
+                        </div>
+
+                        {/* Strengths & Improvements */}
+
+                        <div className="ai-review-feedback-grid">
+
+                          {/* Strengths */}
+
+                          <div className="ai-review-feedback-card ai-review-strengths">
+
+                            <div className="ai-review-section-title">
+                              <span>✓</span>
+                              Strengths
+                            </div>
+
+                            {getReviewList(
+                              aiReview.strengths
+                            ).length > 0 ? (
+                              <ul>
+                                {getReviewList(
+                                  aiReview.strengths
+                                ).map(
+                                  (strength, index) => (
+                                    <li key={index}>
+                                      <span className="ai-review-bullet">
+                                        ✓
+                                      </span>
+                                      <span>
+                                        {strength}
+                                      </span>
+                                    </li>
+                                  )
+                                )}
+                              </ul>
+                            ) : (
+                              <p className="ai-review-empty">
+                                No specific strengths provided.
+                              </p>
+                            )}
+
+                          </div>
+
+                          {/* Improvements */}
+
+                          <div className="ai-review-feedback-card ai-review-improvements">
+
+                            <div className="ai-review-section-title">
+                              <span>↗</span>
+                              Improvements
+                            </div>
+
+                            {getReviewList(
+                              aiReview.improvements
+                            ).length > 0 ? (
+                              <ul>
+                                {getReviewList(
+                                  aiReview.improvements
+                                ).map(
+                                  (improvement, index) => (
+                                    <li key={index}>
+                                      <span className="ai-review-bullet">
+                                        →
+                                      </span>
+                                      <span>
+                                        {improvement}
+                                      </span>
+                                    </li>
+                                  )
+                                )}
+                              </ul>
+                            ) : (
+                              <p className="ai-review-empty">
+                                No specific improvements provided.
+                              </p>
+                            )}
+
+                          </div>
+
+                        </div>
+
+                        {/* Regenerate Bottom Action */}
+
+                        <div className="ai-review-footer">
+
+                          <span>
+                            AI-generated review based on this
+                            submission.
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={
+                              handleRegenerateAIReview
+                            }
+                            disabled={
+                              isRegeneratingReview ||
+                              isGeneratingReview
+                            }
+                          >
+                            {isRegeneratingReview
+                              ? 'Regenerating...'
+                              : '↻ Regenerate'}
+                          </button>
+
+                        </div>
 
                       </div>
+                    )}
 
-                    </div>
-                  )}
+                  </div>
 
-                  {/* ==========================================
-                      SUCCESS MESSAGE
-                     ========================================== */}
-
-                  {submissionResult.status ===
-                    'ACCEPTED' && (
-                    <div className="submission-success-message">
-                      ✓ All test cases passed successfully.
-                    </div>
-                  )}
-
-                </div>
+                </>
               );
             })()
           ) : output ? (

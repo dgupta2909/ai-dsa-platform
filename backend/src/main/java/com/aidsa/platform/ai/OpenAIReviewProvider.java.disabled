@@ -1,0 +1,102 @@
+package com.aidsa.platform.ai;
+
+import com.aidsa.platform.model.Problem;
+import com.aidsa.platform.model.Submission;
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+@Component
+public class OpenAIReviewProvider implements AIReviewProvider {
+
+    private final OpenAIClient client;
+    private final String model;
+
+    public OpenAIReviewProvider(
+            @Value("${openai.api-key}") String apiKey,
+            @Value("${openai.model}") String model
+    ) {
+        this.client = OpenAIOkHttpClient.builder()
+                .apiKey(apiKey)
+                .build();
+
+        this.model = model;
+    }
+
+    @Override
+    public AIReviewResult review(
+            Problem problem,
+            Submission submission
+    ) {
+
+        String prompt = buildPrompt(problem, submission);
+
+        String response =
+                client.chat()
+                        .completions()
+                        .create(
+                                com.openai.models.chat.completions.ChatCompletionCreateParams.builder()
+                                        .model(model)
+                                        .addUserMessage(prompt)
+                                        .build()
+                        )
+                        .choices()
+                        .get(0)
+                        .message()
+                        .content()
+                        .orElse("");
+
+        return new AIReviewResult(
+                response,
+                "AI-generated review of the submitted implementation.",
+                "Not determined",
+                "Not determined",
+                80,
+                java.util.List.of(
+                        "The submission was analyzed by the AI reviewer."
+                ),
+                java.util.List.of(
+                        "Review the AI feedback and improve the implementation where appropriate."
+                ),
+                "openai",
+                model
+        );
+    }
+
+    private String buildPrompt(
+            Problem problem,
+            Submission submission
+    ) {
+
+        return """
+                You are an expert DSA interview code reviewer.
+
+                Review the following coding submission.
+
+                Problem:
+                %s
+
+                Language:
+                %s
+
+                Submitted Code:
+                %s
+
+                Provide concise, useful feedback focused on:
+                1. Correctness
+                2. Approach
+                3. Time complexity
+                4. Space complexity
+                5. Code quality
+                6. Strengths
+                7. Improvements
+
+                Do not rewrite the entire solution.
+                """.formatted(
+                problem.getDescription(),
+                submission.getLanguage(),
+                submission.getCode()
+        );
+    }
+}

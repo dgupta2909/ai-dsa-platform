@@ -18,3 +18,22 @@ export const getSubmissionHistory = async () => {
 export const getSubmissionAnalytics = async () => {
   return await apiClient('/api/submissions/analytics');
 };
+
+export const generateAIReview = async (submissionId) => {
+  return await apiClient(`/api/ai-reviews/${submissionId}`, {
+    method: 'POST',
+  });
+};
+
+export const getAIReview = async (submissionId) => {
+  return await apiClient(`/api/ai-reviews/${submissionId}`);
+};
+
+export const regenerateAIReview = async (submissionId) => {
+  return await apiClient(
+    `/api/ai-reviews/${submissionId}/regenerate`,
+    {
+      method: 'POST',
+    }
+  );
+};
